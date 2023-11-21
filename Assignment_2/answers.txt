@@ -1,0 +1,24 @@
+Q1.In the WikipediaPopular class, it would be much more interesting to find the page that is most popular, not just the view count (as we did with Spark). What would be necessary to modify your class to do this? (You don't have to actually implement it.)
+HY answers: Similar to the solution of Reddit Average in Assignment 1, we can make the map phase produce a PairWritable object as the value in key-value pairs. In the object, its first element stores the count of page request, and its second elements stores the title name.
+Accordingly, in the reduce phase, the reducer finds the line with the maximum of page counts, and keeps the format of the Mapper's output.
+ 
+
+Q2.An RDD has many methods: it can do many more useful tricks than were at hand with MapReduce. Write a sentence or two to explain the difference between .map and .flatMap. Which is more like the MapReduce concept of mapping?
+HY answers: Both .map and .flatMap return a new RDD by applying a function to all elements of a RDD, while .flatMap further consolidates the outputs of all elements.
+In addition, .map can only deal with callable objects, while flatMap can handle iterable objects. This means that yield can only with .flatMap, but not .map.
+.flatMap is more like the MapReduce concept of mapping, because it can produce multiple output key-value pairs per input element.
+
+[Marking] Mapreduce can also be more like flatMap if context.write() is called multiple times
+
+
+Q3.Do the same for .reduce and .reduceByKey. Which is more like the MapReduce concept of reducing?
+HY answers: .reduce computes all the values of a RDD together and gets a single aggregated result, not just for a single key; while .reduceByKey returns a RDD containing the keys and the aggregated result for each key.
+.reduce is more like the MapReduce concept of reducing, because it consolidates values for all keys into a single result.
+
+[Marking]reduceByKey() is more like MapReduce's reducer (produces one result for each unique key)
+
+
+Q4.When finding popular Wikipedia pages, the maximum number of page views is certainly unique, but the most popular page might be a tie. What would your improved Python implementation do if there were two pages with the same highest number of page views in an hour? What would be necessary to make your code find all of the pages views the maximum number of times? (Again, you don't have to actually implement this.)
+HY answers: To find all the pages viewed the maximum number of times, based on the output format of '20160801-000000     (146, 'Simon_Pegg')', instead of using a single string at the second position in parentheses, we can use a list as a collector to save page titles.
+During the Reduce process, if a new record reaches current maximum of page views, then add the page title into the collector list to keep this record; if a new record has a bigger number than current maximum, when replacing the new maximum number, clear the collector list and save this new page title as its first element. The rest can be done in the same manner.
+In addition, if we'd like to have unrepeated page titles, then we can use a set instead of a list.

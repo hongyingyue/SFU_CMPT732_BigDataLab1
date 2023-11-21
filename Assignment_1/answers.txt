@@ -1,0 +1,19 @@
+Q1.How did the output change when you submitted with -D mapreduce.job.reduces=3? 
+   Why would this be necessary if your job produced large output sets?
+HY answers: When adding '-D mapreduce.job.reduces=3', the reducer number is changed from the default 1 to 3. 
+- This setting shortened the total time spent by all reduce tasks obviously. It took one third of the time with only one reducer.
+- Meanwhile, derived from 3 reducers, the outputs were separated into three files instead of one.
+Seen from the experiment's findings, the configuration of reducer number is necessary for big data, because it improves processing efficiency and supports customized user control. 
+- If my job produces large output sets, separating them into more smaller parts can definitely helps to accomplish the processing faster.
+- In addition, we might need to apply different aggregation and shuffling strategies to different parts of the output, this setting enablies us to meet such demands.
+
+Q2.How was the -D mapreduce.job.reduces=0 output different?
+HY answers: Setting '-D mapreduce.job.reduces=0' essentially bypasses the reduce phase of MapReduce, resulting in no data aggregation or sorting after the map phase. 
+In other word, there's no reducer working, and the Reduce step of MapReduce is eliminated from the job. 
+Therefore, the output sets are the results get from the mapping process only. The number of the output files is the number of the working Mappers.
+
+
+Q3.Was there any noticeable difference in the running time of your RedditAverage with and without the combiner optimization?
+HY answers: There wasn't noticeable difference in the running time of my RedditAverage experiments on Reddit-1 and Reddit-2 folders. 
+Actually, the running times of my job with combiner were even longer than that of a job without combiner. 
+Given the dataset size may not have been large enough, the Map steps took much more time with a combiner, while the Reduce steps couldn't even compensate.

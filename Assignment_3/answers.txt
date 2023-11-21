@@ -1,0 +1,43 @@
+Name: Hongying Yue
+StuID: 301594395
+
+Q1.What was wrong with the original wordcount-5 data set that made repartitioning worth it? Why did the program run faster after?
+HY answers: Within the eight input files, there are two files whose document size are significantly smaller than that of the others. Therefore, after repartitioning, the sizes are evenly distributed, making the tasks finish in similar durations.
+
+
+Q2.The same fix does not make this code run faster on the wordcount-3 data set. (It may be slightly slower?) Why? [For once, the answer is not “the data set is too small”.]
+HY answers: Given the number of files in word count-3 being 101, the large number makes the shuffling between those 100+ filing taking quite a long time, overweighting the time saved from evenly timed tasks.
+
+
+Q3.How could you modify the wordcount-5 input so that the word count code can process it and get the same results as fast as possible? (It's possible to get about another minute off the running time.)
+HY answers: There could be two possible modifications to the word count-5 input in order to get the results as fast as possible. First of all, we could resize the input files to make them close in size, combining smaller ones into big one or separate the giant one into smaller ones. Besides, we can try to convert the data to a more efficient compression format that's faster to read and process.
+
+
+Q4.When experimenting with the number of partitions while estimating Euler's constant, you likely didn't see much difference for a range of values, and chose the final value in your code somewhere in that range. What range of partitions numbers was “good” (on the desktop/laptop where you were testing)?
+HY answers: Based on my Mac with 8 cores, a "good" range of partitions numbers usually lies around multiples of 8, such as 15-16, 23-24, 30-32 and so on. This is because choosing a multiple of 8 as the partitions number can ensure that each core can be effectively utilized. In addition, the choice of partitions number is strongly relevant to the data size of the job. That is to say, when dealing with bigger data, the number of partitions should be bigger to make full use of the resources. Therefore, I chose 80 as the partitions number for the Euler sampling of 1 billion times. 
+
+
+Q5.How much overhead does it seem like Spark adds to a job? How much speedup did PyPy get over the usual Python implementation?
+HY answers: Based on the comparisons of Spark Python vs Non-Spark single-threaded Python on PYPY, when the number of samples are small, the total of user time and system time can be taken as the overhead of Spark in Spark Python jobs. From the following results, the Spark overhead is about 9s+1s=10s.
+
+Samples = 1000000000
+	${SPARK_HOME}/bin/spark-submit euler.py 1000000000 15.05s user 3.12s system 54% cpu 33.118 total
+	${PYPY} 		euler_single.py 1000000000 46.56s user 0.07s system 99% cpu 46.688 total
+Samples = 10000
+	${SPARK_HOME}/bin/spark-submit euler.py 10000 10.10s user 1.29s system 137% cpu 8.308 total
+	${PYPY} 		euler_single.py 10000  0.05s user 0.02s system 83% cpu 0.084 total
+Samples = 100
+	${SPARK_HOME}/bin/spark-submit euler.py 100 9.15s user 1.02s system 140% cpu 7.219 total
+	${PYPY} 		euler_single.py 100 0.04s user 0.02s system 79% cpu 0.081 total		
+
+
+To understand the speedup of PyPy, I ran the euler_single.py on Python3 and PyPy, and compared the results with Non-Spark single-threaded C as well. Based on the figures of user time, PyPy makes the processing significantly faster(394.31s vs 46.56s, 43.42s vs 5.03s). Although still slower, Python on PyPy has achieved comparable running speed with C, which is a great speedup from standard CPython.
+
+Samples = 1000000000
+	python3 euler_single.py 1000000000  394.31s user 0.55s system 99% cpu 6:35.45 total
+	${PYPY} euler_single.py 1000000000   46.56s user 0.07s system 99% cpu 46.688 total
+			./euler 1000000000   32.38s user 0.06s system 99% cpu 32.640 total
+Samples = 100000000
+	python3 euler_single.py 100000000  43.42s user 0.11s system 99% cpu 43.663 total
+	${PYPY} euler_single.py 100000000   5.03s user 0.03s system 99% cpu 5.088 total
+			./euler 100000000   3.28s user 0.01s system 93% cpu 3.506 total
