@@ -1,0 +1,53 @@
+
+Q1.How much of a difference did the .cache() make in your Reddit ETL code?
+HY answers: The following experiments are comparisons between reddit_etl_r.py(without cache) and reddit_etl.py(with cache). As the size of dataset grows, the differences are more obvious.
+
+- reddit-2 on my Mac: With .cache(), reddit_etl.py is more than 1.8s (14.792s-12.969s) faster than reddit_etl_r without .cache().
+time ${SPARK_HOME}/bin/spark-submit /Users/hongyingyue/PycharmProjects/pythonProject1/reddit_etl_r.py reddit-2 output-2
+${SPARK_HOME}/bin/spark-submit  reddit-2 output-2  20.59s user 3.62s system 163% cpu 14.792 total
+
+time ${SPARK_HOME}/bin/spark-submit /Users/hongyingyue/PycharmProjects/pythonProject1/reddit_etl.py reddit-2 output-3
+${SPARK_HOME}/bin/spark-submit  reddit-2 output-3  20.94s user 3.54s system 188% cpu 12.969 total
+
+- reddit-3 on cluster: With .cache(), reddit_etl.py is more than 13s (51.850s-38.697s) faster than reddit_etl_r without .cache().
+time spark-submit reddit_etl_r.py /courses/732/reddit-3 output-1
+real	0m51.850s
+user	0m28.798s
+ sys	0m3.255s
+
+time spark-submit reddit_etl.py /courses/732/reddit-3 output-2
+real	0m38.697s
+user	0m29.127s
+ sys	0m2.668s
+
+- reddit-4 on cluster: Similarly, with .cache(), reddit_etl.py is 8.736s (55.583s-46.847s) faster than reddit_etl_r without .cache().
+time spark-submit reddit_etl_r.py /courses/732/reddit-4 output-3
+real	0m55.583s
+user	0m28.448s
+ sys	0m2.566s
+
+time spark-submit reddit_etl.py /courses/732/reddit-4 output-4
+real	0m46.847s
+user	0m30.340s
+ sys	0m2.494s
+
+
+Q2.When would .cache() make code slower than without?
+HY answers: When the dataset is not big enough, .cache() would make code slower than without it.
+See the example of the same reddit_etl_r.py and reddit_etl.py running on reddit-1. The real time of reddit_etl.py with .cache() turned out to be more than 2s (12.586s-10.171s) slower than reddit_etl_r.py without .cache().
+
+time ${SPARK_HOME}/bin/spark-submit /Users/hongyingyue/PycharmProjects/pythonProject1/reddit_etl_r.py reddit-1 output-8
+${SPARK_HOME}/bin/spark-submit  reddit-1 output-8  14.73s user 2.48s system 169% cpu 10.171 total
+
+% time ${SPARK_HOME}/bin/spark-submit /Users/hongyingyue/PycharmProjects/pythonProject1/reddit_etl.py reddit-1 output-7
+${SPARK_HOME}/bin/spark-submit  reddit-1 output-7  15.77s user 2.72s system 146% cpu 12.586 total
+
+[Additional] Q2: Also when a RDD (or DataFrame) is not used again
+
+
+Q3.Under what conditions will the broadcast join be faster than an actual join?
+HY answers: When the size of the broadcasted table is suitable to fit efficiently in memory across all worker nodes, the broadcast join will be faster than an actual join.
+
+
+Q4.When will the broadcast join be slower?
+HY answers: Same as Question 3. It mainly depends on the size of the broadcasted table. When the table is too large to fit in memory of all nodes, or even it fits in memory but not small enough causing memory contention with other tasks on the same nodes, the broadcast join will be slower.
