@@ -1,0 +1,156 @@
+
+-----------
+Q1.In the Reddit averages execution plan, which fields were loaded? How was the average computed (and was a combiner-like step done)?
+
+HY answers:
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- HashAggregate(keys=[subreddit#18], functions=[avg(score#16L)])
+   +- Exchange hashpartitioning(subreddit#18, 200), ENSURE_REQUIREMENTS, [plan_id=80]
+      +- HashAggregate(keys=[subreddit#18], functions=[partial_avg(score#16L)])
+         +- FileScan json [score#16L,subreddit#18] Batched: false, DataFilters: [], Format: JSON, Location: InMemoryFileIndex(1 paths)[file:/Users/hongyingyue/reddit-1], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<score:bigint,subreddit:string>
+
+According to the above physical plan, the fields of 'score' and 'subreddit' were loaded.
+The averages were computed in the following three steps:
+	- HashAggregate(Partial): partial aggregation step to produce intermediate averages for each group
+	- Exchange hashpartitioning: data shuffling to exchange data between partitions
+	- HashAggregate(Final): reshuffled data were grouped and computed again to get the final results
+Among these steps, the partial HashAggregate played a role like a combiner.
+ 
+
+-----------
+Q2.What was the running time for your Reddit averages implementations in the five scenarios described above? How much difference did Python implementation make (PyPy vs the default CPython)? Why was it large for RDDs but not for DataFrames?
+
+HY answers: The running times for my Reddit averages implementations are listed as below.
+
+Scenario 1: MapReduce
+	real	3m8.829s
+	user	0m9.301s
+	 sys	0m1.167s
+
+Scenario 2: Spark DataFrames (with CPython)
+	real	2m14.381s
+	user	0m43.886s
+	 sys	0m 3.647s
+
+Scenario 3: Spark RDDs (with CPython)
+	real	2m57.450s
+	user	0m25.486s
+	 sys	0m 2.888s
+
+Scenario 4: Spark DataFrames (with PyPy)
+	real	1m38.788s
+	user	0m36.839s
+	 sys	0m 3.347s
+
+Scenario 5: Spark RDDs (with PyPy)
+	real	1m40.796s
+	user	0m30.451s
+	 sys	0m 3.333s
+
+The improvements of Python implementation are:
+	- Spark DataFrame: 35.593s (2m14.381s - 1m38.788s)
+	- Spark RDD: 1m16.654s (2m57.450s - 1m40.796s)
+
+Because the elements of a Python RDD are just serialized Python objects to the underlying Scala/JVM code and all work on them has to be done by passing the data back to Python code, while DataFrames contain JVM(Scala) objects already and all their manipulation is done in JVM. Given PyPy's optimization on the performance of Python, it definitely provides more benefits to RDDs, which involve more work on Python.
+
+
+-----------
+Q3.How much of a difference did the broadcast hint make to the Wikipedia popular code's running time (and on what data set)?
+
+HY answers: On dataset pages counts-3, the broadcast hint made the running time 12.658s(1m40.933s - 1m28.275s) faster.
+
+# without the broadcast hint and with --conf spark.sql.autoBroadcastJoinThreshold=-1
+hya134@pmp-gateway:~$ time spark-submit --conf spark.sql.autoBroadcastJoinThreshold=-1 wikipedia_popular_df.py /courses/732/pagecounts-3 output-1
+	real	1m40.933s
+	user	0m45.134s
+	 sys	0m 3.666s
+
+# with the broadcast hint
+hya134@pmp-gateway:~$ time spark-submit wikipedia_popular_df_bcast.py /courses/732/pagecounts-3 output-2
+	real	1m28.275s
+	user	0m40.471s
+	 sys	0m3 .353s
+
+
+-----------
+Q4.How did the Wikipedia popular execution plan differ with and without the broadcast hint?
+
+HY answers: With the broadcast, when connecting the 'big' table with the 'small' table, a BroadcastHashJoin is used instead of a SortMergeJoin.
+	- BroadcasttHashJoin did a BroadcastExchange, making a copy of the 'small' table on every node.
+	- SortMergeJoin sorted the keys used for joining in both tables; views and hour in the 'big' table; max(views) and hour in the 'small' table.
+
+# with the broadcast hint
+hya134@pmp-gateway:~$ time spark-submit wikipedia_popular_df_bcast.py /courses/732/pagecounts-3 output-2
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- Sort [hour#16 ASC NULLS FIRST, title#1 ASC NULLS FIRST], true, 0
+   +- Exchange rangepartitioning(hour#16 ASC NULLS FIRST, title#1 ASC NULLS FIRST, 200), ENSURE_REQUIREMENTS, [plan_id=434]
+      +- Project [hour#16, title#1, views#2L]
+         +- BroadcastHashJoin [views#2L, hour#16], [max(views)#46L, hour#53], Inner, BuildRight, false
+            :- Filter (isnotnull(views#2L) AND isnotnull(hour#16))
+            :  +- InMemoryTableScan [hour#16, title#1, views#2L], [isnotnull(views#2L), isnotnull(hour#16)]
+            :        +- InMemoryRelation [hour#16, title#1, views#2L], StorageLevel(disk, memory, deserialized, 1 replicas)
+            :              +- *(2) Project [pythonUDF0#26 AS hour#16, title#1, views#2L]
+            :                 +- BatchEvalPython [path_to_hour(filename#8)#15], [pythonUDF0#26]
+            :                    +- *(1) Project [title#1, views#2L, filename#8]
+            :                       +- *(1) Filter ((isnotnull(language#0) AND isnotnull(title#1)) AND (((language#0 = en) AND NOT (title#1 = Main_Page)) AND NOT StartsWith(title#1, Special:)))
+            :                          +- *(1) Project [language#0, title#1, views#2L, input_file_name() AS filename#8]
+            :                             +- FileScan csv [language#0,title#1,views#2L] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[hdfs://controller.local:54310/courses/732/pagecounts-3], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<language:string,title:string,views:bigint>
+            +- BroadcastExchange HashedRelationBroadcastMode(List(input[1, bigint, false], input[0, string, true]),false), [plan_id=430]
+               +- Filter isnotnull(max(views)#46L)
+                  +- HashAggregate(keys=[hour#53], functions=[max(views#51L)])
+                     +- Exchange hashpartitioning(hour#53, 200), ENSURE_REQUIREMENTS, [plan_id=426]
+                        +- HashAggregate(keys=[hour#53], functions=[partial_max(views#51L)])
+                           +- Filter isnotnull(hour#53)
+                              +- InMemoryTableScan [hour#53, views#51L], [isnotnull(hour#53)]
+                                    +- InMemoryRelation [hour#53, title#50, views#51L], StorageLevel(disk, memory, deserialized, 1 replicas)
+                                          +- *(2) Project [pythonUDF0#26 AS hour#16, title#1, views#2L]
+                                             +- BatchEvalPython [path_to_hour(filename#8)#15], [pythonUDF0#26]
+                                                +- *(1) Project [title#1, views#2L, filename#8]
+                                                   +- *(1) Filter ((isnotnull(language#0) AND isnotnull(title#1)) AND (((language#0 = en) AND NOT (title#1 = Main_Page)) AND NOT StartsWith(title#1, Special:)))
+                                                      +- *(1) Project [language#0, title#1, views#2L, input_file_name() AS filename#8]
+                                                         +- FileScan csv [language#0,title#1,views#2L] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[hdfs://controller.local:54310/courses/732/pagecounts-3], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<language:string,title:string,views:bigint>
+
+# without the broadcast hint and with --conf spark.sql.autoBroadcastJoinThreshold=-1
+hya134@pmp-gateway:~$ time spark-submit --conf spark.sql.autoBroadcastJoinThreshold=-1 wikipedia_popular_df.py /courses/732/pagecounts-3 output-1
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- Sort [hour#16 ASC NULLS FIRST, title#1 ASC NULLS FIRST], true, 0
+   +- Exchange rangepartitioning(hour#16 ASC NULLS FIRST, title#1 ASC NULLS FIRST, 200), ENSURE_REQUIREMENTS, [plan_id=573]
+      +- Project [hour#16, title#1, views#2L]
+         +- SortMergeJoin [views#2L, hour#16], [max(views)#46L, hour#53], Inner
+            :- Sort [views#2L ASC NULLS FIRST, hour#16 ASC NULLS FIRST], false, 0
+            :  +- Exchange hashpartitioning(views#2L, hour#16, 200), ENSURE_REQUIREMENTS, [plan_id=566]
+            :     +- Filter (isnotnull(views#2L) AND isnotnull(hour#16))
+            :        +- InMemoryTableScan [hour#16, title#1, views#2L], [isnotnull(views#2L), isnotnull(hour#16)]
+            :              +- InMemoryRelation [hour#16, title#1, views#2L], StorageLevel(disk, memory, deserialized, 1 replicas)
+            :                    +- *(2) Project [pythonUDF0#26 AS hour#16, title#1, views#2L]
+            :                       +- BatchEvalPython [path_to_hour(filename#8)#15], [pythonUDF0#26]
+            :                          +- *(1) Project [title#1, views#2L, filename#8]
+            :                             +- *(1) Filter ((isnotnull(language#0) AND isnotnull(title#1)) AND (((language#0 = en) AND NOT (title#1 = Main_Page)) AND NOT StartsWith(title#1, Special:)))
+            :                                +- *(1) Project [language#0, title#1, views#2L, input_file_name() AS filename#8]
+            :                                   +- FileScan csv [language#0,title#1,views#2L] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[hdfs://controller.local:54310/courses/732/pagecounts-3], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<language:string,title:string,views:bigint>
+            +- Sort [max(views)#46L ASC NULLS FIRST, hour#53 ASC NULLS FIRST], false, 0
+               +- Exchange hashpartitioning(max(views)#46L, hour#53, 200), ENSURE_REQUIREMENTS, [plan_id=567]
+                  +- Filter isnotnull(max(views)#46L)
+                     +- HashAggregate(keys=[hour#53], functions=[max(views#51L)])
+                        +- Exchange hashpartitioning(hour#53, 200), ENSURE_REQUIREMENTS, [plan_id=561]
+                           +- HashAggregate(keys=[hour#53], functions=[partial_max(views#51L)])
+                              +- Filter isnotnull(hour#53)
+                                 +- InMemoryTableScan [hour#53, views#51L], [isnotnull(hour#53)]
+                                       +- InMemoryRelation [hour#53, title#50, views#51L], StorageLevel(disk, memory, deserialized, 1 replicas)
+                                             +- *(2) Project [pythonUDF0#26 AS hour#16, title#1, views#2L]
+                                                +- BatchEvalPython [path_to_hour(filename#8)#15], [pythonUDF0#26]
+                                                   +- *(1) Project [title#1, views#2L, filename#8]
+                                                      +- *(1) Filter ((isnotnull(language#0) AND isnotnull(title#1)) AND (((language#0 = en) AND NOT (title#1 = Main_Page)) AND NOT StartsWith(title#1, Special:)))
+                                                         +- *(1) Project [language#0, title#1, views#2L, input_file_name() AS filename#8]
+                                                            +- FileScan csv [language#0,title#1,views#2L] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[hdfs://controller.local:54310/courses/732/pagecounts-3], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<language:string,title:string,views:bigint>
+
+
+-----------
+Q5.For the weather data question, did you prefer writing the “DataFrames + Python methods” style, or the “temp tables + SQL syntax” style form solving the problem? Which do you think produces more readable code?
+
+HY answers: For the weather data question, I did prefer the "DataFrames + Python methods" style, which produces more readable code compared to the "temp tables + SQL syntax" style. 
+The key words from the functions in "DataFrames + Python methods" style give clear implications to the operations they do.
+
