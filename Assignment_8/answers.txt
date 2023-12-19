@@ -1,0 +1,84 @@
+
+-----------
+Q1.What happened when you inserted another row with the same primary key as an existing row?
+
+HY answers: The new record overwrote the old one.
+
+
+-----------
+Q2.What happened when you query a keyspace with replication factor 1 and one node down? How did it behave with replication factor 2 and a node down?
+
+HY answers: 
+
+When the replication factor was 1 and one node was down, the situation varied:
+	- if a query didn't involve records on the disabled node, it succeeded; 
+	- if a query required those records on the inactive node, it failed with an error raised saying "NoHostAvailable: ('Unable to complete the operation against any hosts', {}) ".
+
+While when the replication factor was 2 and one node was down, all quires were computed successfully.
+
+
+-----------
+Q3.How did the consistency level affect the results with the node up/down?
+
+HY answers: 
+
+With CONSISTENCY ONE, all the queries of INSERT and SELECT were completed.
+With CONSISTENCY ALL, it depends:
+	- INSERT: some could succeed, while some couldn't. In my trails, id 7 and 9 got through, but id 8 failed;
+	- SELECT: select all records definitely failed; some of the filtering on id were returned, while the others were not. In my trails, id 2, 3 and 5 got through, but id 1 and 5 failed.
+
+
+-----------
+Q4.Which of the WHERE id=? values returned successfully with CONSISTENCY ALL when one of the nodes was down? Why do you think some could be returned but not others?
+
+HY answers: 
+
+With CONSISTENCY ALL when one of the nodes was down, the queries of WHERE id= 2, 3 and 4 returned successfully.
+
+I think the reason is that, one copy of the records with id 1 and 5 were saved on the unstable node. CONSISTENCY ALL needs the verification of the consistency from the two copies.
+
+
+-----------
+Q5.What was the CREATE TABLE statement you used for the nasalogs table? What was the primary key you choose, and why?
+
+HY answers: 
+
+CREATE TABLE nasalogs (
+	id UUID, 
+	host TEXT, 
+	datetime TIMESTAMP, 
+	path TEXT, 
+	bytes INT, 
+	PRIMARY KEY (host, id) 
+	);
+
+I chose the pair of ('host', 'id') as the primary key. 
+
+Because with this compound key, 'id' can assure the uniqueness of each primary key, and 'host' as the first component being the partition key can make all the records of the same host be fetched together on the same node to facilitate subsequent operations.
+ 
+
+-----------
+Q6.What was the CQL query you used (or tried) to get the total number of bytes?
+
+HY answers: I tried 2 different queries.
+
+1. To get the total number of bytes from the entire table records, no doubt it raised a Timed-out error:
+
+cqlsh:hya134> SELECT sum(bytes) FROM nasalogs;
+ReadTimeout: Error from server: code=1200 [Coordinator node timed out waiting for replica nodes' responses] message="Operation timed out - received only 0 responses." info={'consistency': 'ONE', 'required_responses': 1, 'received_responses': 0}
+
+2. To get the sum of bytes of each host, the results were returned page by page:
+
+cqlsh:hya134> SELECT host, sum(bytes) FROM nasalogs GROUP BY host;
+
+ host                            | system.sum(bytes)
+---------------------------------+-------------------
+               in33.inetnebr.com |            422853
+               ts4-8.slip.uwo.ca |             74445
+                ppp162.iadfw.net |            624527
+                   134.75.130.87 |            106496
+                smcvax.smcvt.edu |              9630
+                  p13.t0.rio.com |             52788
+         ad09-062.compuserve.com |             90200
+                  150.37.224.229 |              7067
+
