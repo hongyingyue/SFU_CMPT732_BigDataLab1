@@ -1,0 +1,158 @@
+Name: Hongying Yue
+StuID: 301594395
+
+-----------
+Question 1. DEBIT OR CREDIT?
+Do people from Ontario tend to put larger purchases on one payment method?
+
+HY Ans: 
+
+1a. According to the query result, customers from Ontario tend to put larger purchases on credit (avg. 131.4)than debit (avg. 101.06).
+
+Results:
+
+mtype   avg_purchase 
+credit	131.4	
+debit	101.06
+
+
+1b. Query:
+
+SELECT t3.mtype, AVG(t1.amount) as avg_purchase
+  FROM purchases t1
+  JOIN customers t2 ON t1.custid = t2.custid
+  JOIN paymentmethods t3 ON t1.custid = t3.custid AND t1.pmid = t3.pmid
+  WHERE t2.province = 'ON'
+  GROUP BY t3.mtype;
+
+
+-----------
+Question 2. WHO SPENDS MORE OVERALL?
+Consider the three groups of people: people who live in the Vancouver region, visitors from other BC areas, and visitors from outside BC altogether. Which group spent the most per transaction?
+
+HY Ans:
+
+2a. According to the results, visitors from outside BC spent the most per transaction.
+
+Results:
+
+From_BC_non_Van From_Van Count Average  Median
+	false	true	10384	86.01	27.37	
+	true	false	3899	95.16	30.08	
+	false	false	15717	112.89	33.27	
+
+
+2b. Query:
+
+DROP VIEW IF EXISTS vancouver_custs CASCADE;
+CREATE VIEW vancouver_custs AS
+WITH 
+  vprefixes (vp) AS 
+    (SELECT DISTINCT pcprefix FROM greater_vancouver_prefixes)
+SELECT custid, 
+    CASE
+        WHEN LEFT(postalcode, 3) IN (SELECT vp FROM vprefixes) THEN 1
+        ELSE 0
+    END AS in_vancouver
+FROM customers;
+
+
+2c. Query:
+
+SELECT
+    CASE
+      WHEN t2.province = 'BC' AND t3.in_vancouver = 0 THEN TRUE
+      ELSE FALSE
+    END AS From_BC_non_Van,
+    CASE
+      WHEN t3.in_vancouver = 1 THEN TRUE
+      ELSE FALSE
+    END AS From_Van,
+    COUNT(t1.amount) AS Count,
+    AVG(t1.amount) AS Average,
+    MEDIAN(t1.amount) AS Median
+  FROM purchases t1
+  JOIN customers t2 ON t1.custid = t2.custid
+  JOIN vancouver_custs t3 ON t2.custid = t3.custid
+  GROUP BY From_BC_non_Van, From_Van
+  ORDER BY Median;
+
+
+-----------
+Question 3. WHO SPENDS MORE ON SUSHI?
+Who spends more at restaurants that serve sushi: locals (residents of Greater Vancouver) or tourists?
+
+HY Ans:
+
+3a. Based on the results, tourists spent more at restaurants that serve sushi.
+
+Results:
+
+avg    in_vancouver
+85.8	0	
+77.57	1		
+
+
+3b. Query:
+
+WITH sushi AS (
+    SELECT amenid
+    FROM amenities
+    WHERE amenity = 'restaurant' AND tags.cuisine ILIKE '%sushi%'
+)
+SELECT AVG(t1.amount), t2.in_vancouver
+  FROM purchases t1
+  JOIN vancouver_custs t2 ON t1.custid = t2.custid
+  WHERE t1.amenid IN (SELECT amenid FROM sushi)
+  GROUP BY t2.in_vancouver
+  ORDER BY t2.in_vancouver;
+
+
+-----------
+Question 4. Average purchase per day for the first five days?
+What was the average purchase per day for the first five days of August?
+
+HY Ans:
+
+4a. Results:
+
+pdate           avg
+2021-08-01	96.59	
+2021-08-02	106.56	
+2021-08-03	95.87	
+2021-08-04	115.5	
+2021-08-05	95.67	
+
+
+4b. Query:
+
+SELECT pdate, AVG(amount)
+  FROM purchases
+  WHERE DATE_PART(month, pdate) = 8 AND DATE_PART(day, pdate) BETWEEN 1 AND 5
+  GROUP BY pdate
+  ORDER BY pdate;
+
+
+4c. For Redshift on the 5-day query, Seq scan data is:
+  - 96317 bytes (94.06K)
+  - 4703 rows
+  - 94.06KB/4703 = 20.48 bytes
+
+4d. For Spectrum on the 5-day query, Seq scan data is:
+  - 267396 bytes
+  - 4703 rows
+  - 267396/4703 = 56.86 bytes
+
+4e. I may infer that, after locating the records meeting the filtering conditions, Redshift only scan the required fields of 'pdate' and 'amount', while Spectrum scans the whole line of the record.
+
+4f. A dataset with the following properties might be well-suited for Redshift:
+  - Is structured and optimized for Redshift's columnar storage format
+  - Needs frequent access and is visited by queries requiring low-latency responses
+  - Is frequently updated or requires regular write operations
+
+4g. A dataset with the following properties might be well-suited for S3 and queried via Spectrum with good cost-efficiency:
+  - Contains mainly unstructured raw data, such as text
+  - Is in large volumes and infrequently accessed
+  - Works as a data lake where data is stored in raw form, or as an external table than references other S3 data directly
+  - Needs scalable compute resources for querying data
+
