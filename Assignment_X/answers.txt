@@ -1,0 +1,142 @@
+Name: Hongying Yue
+StuID: 301594395
+
+-----------
+1.What is your best guess for the slope and intercept of the streaming points being produced?
+
+HY Ans:
+
+My best guess is:
+    slope: -7.35
+    intercept: 32
+
+Here is the last update of the streaming:
+    +-----------------+-----------------+
+    |             beta|            alpha|
+    +-----------------+-----------------+
+    |-7.34894982461171|32.10055628354897|
+    +-----------------+-----------------+
+
+
+-----------
+2.Is your streaming program's estimate of the slope and intercept getting better as the program runs? 
+
+HY Ans: 
+
+Yes, the streaming program's estimate is getting better as the program run.
+It is because the program is aggregating all of the data from the start of time.
+
+Below are the results of my program. I only list the first 3 and last 2 batches:
+
+## Batch: 0
+
++----+-----+
+|beta|alpha|
++----+-----+
+|NULL| NULL|
++----+-----+
+
+---
+
+## Batch: 1
+
++------------------+------------------+
+|              beta|             alpha|
++------------------+------------------+
+|-7.349565512172297|30.095309467385846|
++------------------+------------------+
+
+---
+
+## Batch: 2
+
++------------------+------------------+
+|              beta|             alpha|
++------------------+------------------+
+|-7.350155705490228|31.162360261251706|
++------------------+------------------+
+
+---
+.
+.
+.
+## Batch: 31
+
++------------------+-----------------+
+|              beta|            alpha|
++------------------+-----------------+
+|-7.348908840845379|32.09051640916235|
++------------------+-----------------+
+
+---
+
+## Batch: 32
+
++-----------------+-----------------+
+|             beta|            alpha|
++-----------------+-----------------+
+|-7.34894982461171|32.10055628354897|
++-----------------+-----------------+
+
+
+-----------
+3.In the colour classification question, what were your validation scores for the RGB and LAB pipelines?
+
+HY Ans:
+
+hya134@pmp-gateway:~$ spark-submit colour_predict.py /courses/732/colour-words-1
+    Validation score for RGB model: 0.612591
+    Validation score for LAB model: 0.6965294592413237
+
+
+-----------
+4.When predicting the tmax values, did you over-fit the training data (and for which training/validation sets)?
+
+HY Ans: (Without yesterday's temperature)
+
+With dataset tmax-1, I saw over-fitting on the training data.
+
+On tmax-1's validation:
+    r2 = 0.859993
+    rmse = 4.55188
+
+On test data:
+    r2 = 0.4091953623211958
+    rmse = 9.969977062305464
+
+The model performed much better on the validatation data than on the test data, indicating an obvious over-fitting.
+
+
+-----------
+5.What were your testing scores for your model with and without the “yesterday's temperature” feature?
+
+HY Ans: (With my GBT model)
+
+Testing scores WITHOUT yestderday's temperature:
+    r2 = 0.4091953623211958
+    rmse = 9.969977062305464
+
+Testing scores WITH the feature:
+    r2 = 0.8641961380133321
+    rmse = 4.764402226945631
+
+
+-----------
+6.Have a look with and without the “yesterday's temperature” feature: 
+do the results make sense and suggest that your model is making decisions reasonably? 
+With “yesterday's temperature”, is it just predicting “same as yesterday”?
+
+HY Ans:
+
+Feature Importance WITHOUT yestderday's temperature:
+    (4,[0,1,2,3],
+    [0.28394601978334494,0.15634384291810305,0.0801388900849367,0.4795712472136152])
+
+Feature Importance WITH yestderday's temperature:
+    (5,[0,1,2,3,4],
+    [0.03947551300825626,0.02229724665638995,0.016981085840044395,0.0465221781833791,0.8747239763119302])
+
+Based on the Feature Importance outputs, the “yesterday's temperature” feature plays a dominant role in predicting today's temperature, which I think makes sense and is in line with our common sense.
+
+Besides, the other features also have an influence on the prediction, although it may be minor.
+
