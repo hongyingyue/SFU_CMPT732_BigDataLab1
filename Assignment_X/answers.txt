@@ -1,5 +1,3 @@
-Name: Hongying Yue
-StuID: 301594395
 
 -----------
 1.What is your best guess for the slope and intercept of the streaming points being produced?
